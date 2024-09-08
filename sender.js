@@ -26,21 +26,6 @@ let readerDataChannel;
 let transferId = argv.transferId;
 let fileInfo;
 
-function calculateChecksum(filePath, callback) {
-	const hash = crypto.createHash('sha256');
-	const fileStream = fs.createReadStream(filePath);
-
-	fileStream.on('data', (chunk) => hash.update(chunk));
-	fileStream.on('end', () => callback(hash.digest('hex')));
-}
-
-function getFileSize(filePath, callback) {
-	fs.stat(filePath, (err, stats) => {
-		if (err) throw err;
-		callback(stats.size);
-	});
-}
-
 socket.on("terminate",()=>{
 	process.exit(0);
 });
@@ -186,8 +171,8 @@ socket.on("receiveAnswer",(answer)=>{
 
 socket.on("connect",()=>{
 	console.log("Connected to server");
-	calculateChecksum(file, checksum => {
-		getFileSize(file, size => {
+	common.calculateChecksum(file, checksum => {
+		common.getFileSize(file, size => {
 			transferId =
 			fileInfo = {
 				file,
