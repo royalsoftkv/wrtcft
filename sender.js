@@ -1,7 +1,6 @@
 require('dotenv').config();
 let wrtc = require("wrtc");
 let fs = require("fs");
-const crypto = require("crypto");
 const common = require("./common.js");
 const minimist = require('minimist');
 
@@ -76,7 +75,7 @@ socket.on("candidates",()=> {
 		console.log("BUFFER AMOUNT LOW!!");
 	};
 
-	readerDataChannel.onopen = function(event){
+	readerDataChannel.onopen = function(){
 		// console.log(`Reader data channel is opened ${localConnection.connectionState}`);
 		let data = {};
 		data.transferId = transferId;

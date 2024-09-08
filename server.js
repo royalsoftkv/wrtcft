@@ -22,16 +22,16 @@ io.on("connection",(socket)=>{
 	socket.on("candidate",(data)=>{
 		let transferId = data.transferId;
 		if(data.type === "receiver"){
-			console.log("Was the receiver and found the candidates", data.candidate.candidate);
+			// console.log("Was the receiver and found the candidates", data.candidate.candidate);
 			transfers[transferId].sender.socket.emit("receiveCandidate",data.candidate);
 		} else if (data.type === "sender") {
-			console.log("Was the sender and found the candidates", data.candidate.candidate);
+			// console.log("Was the sender and found the candidates", data.candidate.candidate);
 			transfers[transferId].reciever.socket.emit("receiveCandidate",data.candidate);
 		}
 	});
 
 	socket.on("sendingOffer",(data)=>{
-		console.log("sendingOffer",data);
+		// console.log("sendingOffer",data);
 		let transferId = data.transferId;
 		transfers[transferId].reciever.socket.emit("receiveOffer",data.offer);
 	});
@@ -56,7 +56,7 @@ io.on("connection",(socket)=>{
 		socket.emit("setTransferId",transferId);
 	})
 
-	socket.on("receive",(data, cb)=>{
+	socket.on("receive",(data)=>{
 		let transferId = data.transferId;
 		console.log("Received request for transfer", transferId);
 		socket.join(transferId);
@@ -73,8 +73,8 @@ io.on("connection",(socket)=>{
 		}
 	});
 
-	socket.on("disconnect", (event) => {
-		console.log("Disconnected", socket.id);
+	socket.on("disconnect", () => {
+		console.log("Disconnected", socket.id, socket.handshake.address);
 	});
 
 });

@@ -4,7 +4,6 @@ const path = require("path");
 const common = require("./common.js");
 let wrtc = require("wrtc");
 let fs = require("fs");
-let crypto = require("crypto");
 let argv = minimist(process.argv.slice(2));
 
 if(argv._.length < 2) {
@@ -64,12 +63,6 @@ function receiveCandidate(candidate) {
 	}).catch(err => {
 		console.error("Error added candidate", err);
 	});
-}
-
-function updateProgress(progress) {
-	process.stdout.clearLine();  // clear the current line
-	process.stdout.cursorTo(0);  // move the cursor to the beginning of the line
-	process.stdout.write(progress);
 }
 
 //recieving the offer from the remote connection
@@ -140,7 +133,7 @@ function receiveOffer(offer) {
 			// console.log("Receive data channel is opened");
 		};
 
-		writerDataChannel.onclose = function(event){
+		writerDataChannel.onclose = function(){
 			// console.log(`Write data channel closed : ${localConnection.connectionState}`);
 			common.calculateChecksum(file, checksum=>{
 				// console.log("Received checksum", checksum);
@@ -160,7 +153,7 @@ function receiveOffer(offer) {
 			});
 
 		};
-		writerDataChannel.onconnectionstatechange = function(event){
+		writerDataChannel.onconnectionstatechange = function(){
 			console.log(`Connection's state changed to : ${localConnection.connectionState}`);
 		};
 
