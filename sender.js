@@ -1,14 +1,29 @@
-let socket = require("socket.io-client")("http://localhost:5000");
+require('dotenv').config();
 let wrtc = require("wrtc");
 let fs = require("fs");
 const crypto = require("crypto");
+const common = require("./common.js");
+const minimist = require('minimist');
+
+let argv = minimist(process.argv.slice(2));
+if(argv._.length < 2) {
+	console.info('Usage: wrtcft send file [server] [options]')
+	console.info('Example: wrtcft send /path/to/file http://127.0.0.1:5000 [options]')
+	process.exit()
+}
+
+let file = argv._[1]
+let server = argv._[2] || process.env.SERVER || argv.server;
+
+console.log("Connecting to server: ", server);
+
+let socket = require("socket.io-client")(server);
 
 let reader;
 let localConnection;
 let readerDataChannel;
 
-let file = 'send_file';
-let transferId;
+let transferId = argv.transferId;
 let fileInfo;
 
 function calculateChecksum(filePath, callback) {
@@ -24,12 +39,6 @@ function getFileSize(filePath, callback) {
 		if (err) throw err;
 		callback(stats.size);
 	});
-}
-
-function updateProgress(progress) {
-	process.stdout.clearLine();  // clear the current line
-	process.stdout.cursorTo(0);  // move the cursor to the beginning of the line
-	process.stdout.write(progress);
 }
 
 socket.on("terminate",()=>{
@@ -76,7 +85,7 @@ socket.on("candidates",()=> {
 
 	readerDataChannel = localConnection.createDataChannel("FileTransferChannel", dataChannelConfig); 
 
-	readerDataChannel.bufferedAmountLowThreshold = 65536; // 64kb
+	readerDataChannel.bufferedAmountLowThreshold = process.env.BUFFER_SIZE || 65536; // 64kb
 
 	readerDataChannel.onbufferedamountlow = function(){
 		console.log("BUFFER AMOUNT LOW!!");
@@ -96,26 +105,41 @@ socket.on("candidates",()=> {
 
 		let sizeSent = 0;
 
+		let startTime = Date.now();
+
+		let iterations = 0;
+		let low= 0;
+		let high = 0;
+
 		setTimeout(function(){
 			reader.on("data",function(chunk){
+				iterations ++;
 				if(readerDataChannel.bufferedAmount < readerDataChannel.bufferedAmountLowThreshold){
 					// console.log("Low ",readerDataChannel.bufferedAmount);
+					low++;
 				}else{
 					reader.pause();
+					high++;
 					// console.log("High ",readerDataChannel.bufferedAmount);
 					setTimeout(function(){
 						reader.resume();
-					},100);
+					},process.env.BUFFER_WAIT || 100);
 
 				}
 				sizeSent+=chunk.byteLength;
 				let perc = Math.round(100*sizeSent/fileInfo.size);
-				updateProgress(`Sending ${sizeSent} / ${fileInfo.size} ${perc}%`);
+				let elapsed = Date.now() - startTime;
+				let speed = common.round(sizeSent / (elapsed /1000) / 1024 / 1024, 2);
+				common.printProgress(`Sending ${sizeSent} / ${fileInfo.size} ${perc}% elapsed=${elapsed} speed=${speed} MB/s iteratiions=${iterations} low=${low} high=${high}`);
 				readerDataChannel.send(chunk);
 			});
 
 			reader.on("close",function(){
 				console.log("\nTransfer completed");
+				let elapsed = Date.now() - startTime;
+				let totalTime = elapsed / 1000;
+				let avgSpeed = common.round(sizeSent / totalTime / 1024 / 1024, 2);
+				console.log(`Total time ${common.round(totalTime, 2)} sec average speed=${avgSpeed} MB/s`);
 				readerDataChannel.close();
 				setTimeout(()=>{
 					process.exit(0);
@@ -164,10 +188,12 @@ socket.on("connect",()=>{
 	console.log("Connected to server");
 	calculateChecksum(file, checksum => {
 		getFileSize(file, size => {
+			transferId =
 			fileInfo = {
 				file,
 				checksum,
-				size
+				size,
+				transferId
 			};
 			console.log("Sending file ", file, size);
 			socket.emit("send",fileInfo);

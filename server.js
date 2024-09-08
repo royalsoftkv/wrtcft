@@ -1,12 +1,14 @@
+require('dotenv').config()
 const http = require("http").createServer();
 const io = require("socket.io")(http);
 const port = process.env.PORT || 5000;
+const host = process.env.HOST || "0.0.0.0";
 const uniqid = require("uniqid");
 
 let transfers = {};
 
 io.on("connection",(socket)=>{
-	console.log("connected client ", socket.id);
+	console.log("connected client ", socket.id, socket.handshake.address);
 
 	socket.on("initializeWriter",(transferId)=>{
 		let data = transfers[transferId].sender.fileInfo;
@@ -42,8 +44,10 @@ io.on("connection",(socket)=>{
 
 	socket.on("send",(fileInfo)=>{
 		console.log("Received send file", fileInfo.file, fileInfo.size);
-		let transferId = uniqid();
-		transferId  ="abc";
+		let transferId = fileInfo.transferId;
+		if(!transferId) {
+			transferId = uniqid();
+		}
 		transfers[transferId]={};
 		transfers[transferId].sender = {};
 		transfers[transferId].sender.fileInfo = fileInfo;
@@ -63,6 +67,9 @@ io.on("connection",(socket)=>{
 			transfer.sender.socket.emit("candidates");
 			transfer.reciever.socket.emit("candidates");
 			transfer.sender.socket.emit("sendOffer");
+		} else {
+			socket.emit("transferError", "No open transfer with id "+transferId);
+			socket.disconnect();
 		}
 	});
 
@@ -72,5 +79,5 @@ io.on("connection",(socket)=>{
 
 });
 
-http.listen(port, () => console.log(`Server running on port: ${port}`));
+http.listen(port, host,() => console.log(`Server running on: ${host}:${port}`));
 

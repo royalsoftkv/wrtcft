@@ -1,36 +1,41 @@
-let socket = require("socket.io-client")("http://localhost:5000");
+require('dotenv').config();
+const minimist = require('minimist')
+const path = require("path");
+const common = require("./common.js");
 let wrtc = require("wrtc");
 let fs = require("fs");
 let crypto = require("crypto");
+let argv = minimist(process.argv.slice(2));
+
+if(argv._.length < 2) {
+	console.info('Usage: wrtcft receive transferId [file] [server] [options]')
+	console.info('Example: wrtcft receive <transferId> <server> <file> [options]')
+	process.exit()
+}
+
+let transferId = argv._[1]
+let file = argv._[2]
+let server = argv._[3] || process.env.SERVER || argv.server
+
+let socket = require("socket.io-client")(server);
+
 
 let writer;
 let localConnection;
-let readerDataChannel;
 
-let file = `recieved`
-let transferId = "abc";
 let fileInfo;
-
-function calculateChecksum(filePath, callback) {
-	const hash = crypto.createHash('sha256');
-	const fileStream = fs.createReadStream(filePath);
-
-	fileStream.on('data', (chunk) => hash.update(chunk));
-	fileStream.on('end', () => callback(hash.digest('hex')));
-}
-
-function getFileSize(filePath, callback) {
-	fs.stat(filePath, (err, stats) => {
-		if (err) throw err;
-		callback(stats.size);
-	});
-}
 
 socket.on("terminate",()=>{
 	process.exit(0);
 });
+socket.on("transferError",(err)=>{
+	console.log(err);
+});
 socket.on("initializeWriter",(data)=>{
 	fileInfo = data;
+	if(!file) {
+		file = path.basename(fileInfo.file);
+	}
 	writer = fs.createWriteStream(file);
 });
 socket.on("error", (err) => {
@@ -111,14 +116,22 @@ function receiveOffer(offer) {
 
 		let receivedSize = 0;
 
+		let low = 0;
+		let iterations = 0;
+		let startTime = Date.now();
+
 		writerDataChannel.onbufferedamountlow = function(event){
 			console.log("BUFFERED AMOUNT LOW !!\n",event);
+			low ++;
 		};
 
 		writerDataChannel.onmessage = function(event) {
+			iterations++;
 			receivedSize+=event.data.byteLength;
-			let perc = Math.round(100*receivedSize/fileInfo.size);
-			updateProgress(`Sending ${receivedSize} / ${fileInfo.size} ${perc}%`);
+			let perc = common.round(100*receivedSize/fileInfo.size);
+			let elapsed = common.round((Date.now() - startTime)/1000);
+			let speed = common.round(receivedSize / elapsed / 1024 / 1024, 2);
+			common.printProgress(`Sending ${receivedSize} / ${fileInfo.size} ${perc}%  elapsed=${elapsed} speed=${speed} MB/s iterations=${iterations} low=${low}`);
 			writer.write(Buffer.from(event.data));
 		};
 
@@ -129,12 +142,16 @@ function receiveOffer(offer) {
 
 		writerDataChannel.onclose = function(event){
 			// console.log(`Write data channel closed : ${localConnection.connectionState}`);
-			calculateChecksum(file, checksum=>{
+			common.calculateChecksum(file, checksum=>{
 				// console.log("Received checksum", checksum);
-				getFileSize(file, size => {
+				common.getFileSize(file, size => {
 					// console.log("Received size", size);
 					if(checksum === fileInfo.checksum && size === fileInfo.size) {
 						console.log("\nTransfer finished");
+						let elapsed = Date.now() - startTime;
+						let totalTime = elapsed / 1000;
+						let avgSpeed = common.round(receivedSize / totalTime / 1024 / 1024, 2);
+						console.log(`Total time ${common.round(totalTime, 2)} sec average speed=${avgSpeed} MB/s`);
 					} else {
 						console.error("\nError transferring file");
 					}
