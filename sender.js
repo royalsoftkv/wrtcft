@@ -7,9 +7,7 @@ let reader;
 let localConnection;
 let readerDataChannel;
 
-let file = '/home/marko/Downloads/Z790-Pro-RS-Wifi_12.01.ROM'
-// let file = '/home/marko/Downloads/serbia-latest.osm.pbf'
-// let file = 'file.txt'
+let file = 'send_file';
 let transferId;
 let fileInfo;
 
